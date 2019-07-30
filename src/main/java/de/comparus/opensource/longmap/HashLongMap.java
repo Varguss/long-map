@@ -3,13 +3,19 @@ package de.comparus.opensource.longmap;
 import lombok.RequiredArgsConstructor;
 
 import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class HashLongMap<V> implements LongMap<V> {
     /**
      * A count of hash bins by default if not specified on creation.
      */
-    private static final int DEFAULT_HASH_SIZE = 64;
+    private static final int DEFAULT_HASH_SIZE = 16;
+
+    /**
+     * Load factor when we need to scale hash bins.
+     */
+    private static final float DEFAULT_LOAD_FACTOR = 0.75f;
 
     private int hashSize;
     private int size;
@@ -27,9 +33,16 @@ public class HashLongMap<V> implements LongMap<V> {
 
     @SuppressWarnings("unchecked")
     public HashLongMap() {
+        this.hashSize = DEFAULT_HASH_SIZE;
         this.entries = (Entry<V>[]) new Entry[DEFAULT_HASH_SIZE];
     }
 
+    /**
+     * Puts a value to entry by key. If entry by key already exists, replaces this entry with new one. Returns previous value or null if absent.
+     * @param key key
+     * @param value value
+     * @return previous value or null if none
+     */
     public V put(long key, V value) {
         int hash = getHash(key);
 
@@ -37,7 +50,10 @@ public class HashLongMap<V> implements LongMap<V> {
 
         if (head == null) {
             entries[hash] = new Entry<>(key, value);
+
             size++;
+            resizeIfNeeded();
+
             return null;
         } else {
             Entry<V> previous = head;
@@ -63,11 +79,20 @@ public class HashLongMap<V> implements LongMap<V> {
         }
     }
 
+    /**
+     * @param key Gets value by key.
+     * @return value
+     */
     public V get(long key) {
         Entry<V> entry = getEntry(key);
         return entry == null ? null : entry.value;
     }
 
+    /**
+     * Removes an entry from map if exists, otherwise null. If exists, returns removed value.
+     * @param key
+     * @return
+     */
     public V remove(long key) {
         int hash = getHash(key);
 
@@ -98,14 +123,28 @@ public class HashLongMap<V> implements LongMap<V> {
         return head.value;
     }
 
+    /**
+     * Checks if map is empty.
+     * @return true - empty, false - not empty
+     */
     public boolean isEmpty() {
         return size == 0;
     }
 
+    /**
+     * Checks that map contains key.
+     * @param key key to search for
+     * @return true - contains, false - does not contain
+     */
     public boolean containsKey(long key) {
         return getEntry(key) != null;
     }
 
+    /**
+     * Checks that map contains value.
+     * @param value value to search for
+     * @return true - contains, false - does not contain
+     */
     public boolean containsValue(V value) {
         for (Entry<V> entry : entries) {
             if (entry != null) {
@@ -122,6 +161,10 @@ public class HashLongMap<V> implements LongMap<V> {
         return false;
     }
 
+    /**
+     * Returns an array of keys.
+     * @return keys
+     */
     public long[] keys() {
         long[] keys = new long[size];
         int index = 0;
@@ -138,6 +181,10 @@ public class HashLongMap<V> implements LongMap<V> {
         return keys;
     }
 
+    /**
+     * Returns an array of values.
+     * @return values
+     */
     @SuppressWarnings("unchecked")
     public V[] values() {
         V[] values = (V[]) new Object[size];
@@ -157,10 +204,17 @@ public class HashLongMap<V> implements LongMap<V> {
         return result;
     }
 
+    /**
+     * Gets current size of map.
+     * @return map size
+     */
     public long size() {
         return size;
     }
 
+    /**
+     * Clears map from entries.
+     */
     public void clear() {
         for (int i = 0; i < entries.length; i++) {
             entries[i] = null;
@@ -209,6 +263,25 @@ public class HashLongMap<V> implements LongMap<V> {
         }
 
         return keyHash % hashSize;
+    }
+
+    private void resizeIfNeeded() {
+        if (size > hashSize * DEFAULT_LOAD_FACTOR) {
+            resize();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void resize() {
+        hashSize *= 2;
+
+        Entry<V>[] buffer = (Entry<V>[]) new Entry[entries.length];
+        System.arraycopy(entries, 0, buffer, 0, entries.length);
+
+        entries = (Entry<V>[]) new Entry[hashSize];
+        Arrays.stream(buffer)
+                .filter(Objects::nonNull)
+                .forEach(entry -> this.put(entry.key, entry.value));
     }
 
     @RequiredArgsConstructor
