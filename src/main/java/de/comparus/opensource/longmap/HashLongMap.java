@@ -75,6 +75,9 @@ public class HashLongMap<V> implements LongMap<V> {
             created.next = previous.next.next;
             previous.next = created;
 
+            size++;
+            resizeIfNeeded();
+
             return head.value;
         }
     }
